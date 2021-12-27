@@ -1,0 +1,15 @@
+mm0=Resume Game
+mm1=Load Game
+mm2=Volume
+mm3=Language
+mm4=Key Sounds
+mm5=Menu Sounds
+mm6=Help Sounds
+mm7=Scrollgeschwindigkeit
+mm8=Exit Game
+mm9=Restart Game
+mm10=shutdown yvio
+enabled=enabled
+disabled=disabled
+back=back
+
