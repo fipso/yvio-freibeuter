@@ -1,0 +1,34 @@
+=======PatchLog=======
+Freibeuter der Karibik
+======================
+
+Version 1.1
+
+Allgemeine Änderungen
+
+QUESTS
+======
+ - Zeitdauer verlängert: Man hat mehr Zeit um eine Quest zu erfüllen
+ - Söldner sind billiger geworden
+ 
+KAMPF
+=====
+ - Kaperfahrt: Beuteberechnung leicht geändert
+ - Unterwegs: Sieg mit Matrosen bedeutet immer Ansehenssteigerung, Sieg mit Kanonen nie Ansehenssteigerung
+ - Zufallswert bei starker Überlegenheit reduziert
+ - Bei einer Niederlage eines Spielers gegen einen besetzenden Pirat, wird dieser geschwächt, so wird es leichter gemeinsam einen Hafen zu befreien
+
+AUSRÜSTUNG
+==========
+ - beim Feilschen wird nun der Rang berücksichtigt
+ - Segel geben weniger Bonus auf die Reisegeschwindigkeit
+ - Wahrscheinlichkeit für 2er Plättchen erhöht, insbesondere im Solospiel kommen diese nun schneller
+
+BALANCING
+=========
+ - Unterwegs: Hintenliegende Spieler bekommen etwas leichtere Kämpfe (ein ausgleichendes Element)
+ 
+GENERELL
+========
+ - mehr Texte können nun mit der SKIP-Taste übersprungen werden
+ - mit der Taste "Siegpunkte" werden nun auch besetzte Häfen durchgesagt
