@@ -1,0 +1,27 @@
+#continue Game
+mm0=Fortsetzen
+#load a game
+mm1=Spiel auswählen
+#change volume
+mm2=Lautstaerke
+#change langauge
+mm3=Menüsprache
+#key sounds
+mm4=Tastentoene
+#menu sounds
+mm5=Menuesounds
+#help sounds
+mm6=Hilfesounds
+#scroll speed
+mm7=Scrollgeschwindigkeit
+#quit game
+mm8=Spiel beenden
+#restart game
+mm9=Neu starten
+#power off yvio
+mm10=yvio ausschalten
+
+#general captions
+enabled=Ein
+disabled=Off
+back=Zurueck
