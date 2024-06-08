@@ -1,8 +1,5 @@
-#Reward_Stuff
 reward=??p0079.wav|~z|??p0078.wav|??p0080.wav|??p0214.wav
 reward_sh=??p0079.wav|~z|??p0078.wav
-
-#Goods_Stuff
 grain=??p0050.wav
 wood=??p0051.wav
 tobacco=??p0052.wav
@@ -84,8 +81,6 @@ wrong_goods_grain=??p0130.wav|??p0225.wav|??p0131.wav
 wrong_goods_wood=??p0130.wav|??p0226.wav|??p0131.wav
 wrong_goods_tobacco=??p0130.wav|??p0227.wav|??p0131.wav
 wrong_goods_rum=??p0130.wav|??p0228.wav|??p0131.wav
-
-#Port_Stuff
 camarco_lg=?port_1.wav
 spring_point_lg=?port_2.wav
 puerto_plata_lg=?port_3.wav
@@ -159,8 +154,6 @@ player_reached_destination_port=%ship|??p0297.wav|%port
 player_reached_destination_port_sh=%ship|??p0605.wav|%port
 no_more_equipment=??p0212.wav
 port_bonus=??p0706.wav
-
-#Player_Stuff
 captain=??p0298.wav|%ship
 players_1=??p0241.wav
 players_2=??p0242.wav
@@ -172,8 +165,6 @@ player_active_normal=%ship|??p0221.wav
 player_active_profi=%ship
 player_inactive_beginner=%ship|??p0220.wav
 player_inactive=%ship|??p0220.wav
-
-#Equip_Stuff
 sma_sail=??p0275.wav
 big_sail=??p0276.wav
 sma_cannon=??p0277.wav
@@ -192,8 +183,8 @@ full_equip_sma_sailor=??p0261.wav|??p0022.wav|??p0259.wav
 full_equip_big_sailor=??p0261.wav|??p0023.wav|??p0259.wav
 full_equip_sma_cargo=??p0261.wav|??p0024.wav|??p0259.wav
 full_equip_big_cargo=??p0261.wav|??p0025.wav|??p0259.wav
-full_equip_sma_residence=??p0261.wav|??p0026.wav|??p0260.wav
-full_equip_big_residence=??p0261.wav|??p0027.wav|??p0260.wav
+full_equip_sma_residence=??p0261.wav|??p0026.wav
+full_equip_big_residence=??p0261.wav|??p0027.wav
 bought_s=??p0122.wav|??p0257.wav|~z1|??p0258.wav|??p0083.wav|~z2|??p0085.wav
 bought_m=??p0122.wav|??p0257.wav|~z1|??p0258.wav|??p0083.wav|~z2|??p0084.wav
 bought_sh=??p0123.wav|??p0257.wav|~z|??p0078.wav
@@ -277,8 +268,6 @@ equips_to_port_2=??p0213.wav|%equip1|??p0215.wav|%port1|??p0216.wav|%equip2|??p0
 equip_to_port_init=??p0213.wav|%equip|??p0215.wav|%port|??p0429.wav|??p0446.wav
 equip_to_port=??p0213.wav|%equip|??p0215.wav|%port|??p0446.wav
 equip_to_port_sh=??p0213.wav|%equip|??p0215.wav|%port
-
-#Status_Stuff
 status_victory_s=??p0299.wav|%ship|??p0217.wav|??p0614.wav|??p0085.wav
 status_victory_m=??p0299.wav|%ship|??p0217.wav|~z|??p0084.wav
 status_ship_s_s=%ship|??p0301.wav|??p0480.wav|??p0704.wav|??p0614.wav|??p0705.wav|~z1|??p0636.wav|??p0294.wav|~z2|??p0270.wav
@@ -287,8 +276,6 @@ status_ship_m_s=%ship|??p0301.wav|~z1|??p0268.wav|??p0614.wav|??p0705.wav|~z2|??
 status_ship_m_m=%ship|??p0301.wav|~z1|??p0268.wav|~z2|??p0269.wav|~z3|??p0636.wav|??p0294.wav|~z4|??p0270.wav
 status_player_s=??p0806.wav|%title|??p0294.wav|??p0266.wav|~z|??p0078.wav|??p0294.wav|??p0614.wav|??p0085.wav
 status_player_m=??p0806.wav|%title|??p0294.wav|??p0266.wav|~z1|??p0078.wav|??p0294.wav|~z2|??p0084.wav
-
-#Battle_Stuff
 of_1_maneuver_flight=??of1btesc.wav
 of_2_maneuver_flight=??of2btesc.wav
 of_3_maneuver_flight=??of3btesc.wav
@@ -415,8 +402,6 @@ pvp_won=??p0307.wav|%active|??p0606.wav|%passive|??p0607.wav
 pvp_lost=??p0307.wav|%active|??p0608.wav|%passive|??p0609.wav
 music_cannon=?cannon.wav
 music_sword=?sword.wav
-
-#Quest_Stuff
 high_demand_grain=??p0138.wav|??p0050.wav
 high_demand_wood=??p0138.wav|??p0051.wav
 high_demand_tobacco=??p0138.wav|??p0052.wav
@@ -600,13 +585,9 @@ quest_amulett_1=??p0785.wav|%port1|??p0728.wav|%port2
 quest_amulett_2=??p0787.wav
 quest_amulett_3=??p0788.wav
 quest_amulett_4=??p0789.wav|??p0079.wav|~z|??p0078.wav
-
-#Yvie_Stuff
 yvi_error_much=??p0246.wav|??p0247.wav
 yvi_error_colour=??p0248.wav|??p0247.wav
 yvi_error_wrong=??p0249.wav|??p0247.wav
-
-#General_Stuff
 intro=?intro.wav
 error=?buzz.wav
 choose_game=??p0253.wav
@@ -655,8 +636,6 @@ game_over_day=??p0480.wav|??p0625.wav
 game_over_days=~z|??p0135.wav
 new_goal=??p0628.wav|~z|??p0629.wav
 game_end=??p0744.wav
-
-#Info_Stuff
 info_price=??p0423.wav|??p0419.wav
 info_no_equip=??p0423.wav|??p0420.wav
 info_battle_lost=??p0423.wav|??p0426.wav|??p0427.wav
@@ -667,8 +646,6 @@ info_port_bonus=??p0423.wav|??p0707.wav
 info_boarding_credit=??p0423.wav|??p0812.wav
 info_firing_credit=??p0423.wav|??p0813.wav
 info_danger=??p0804.wav
-
-#General_Numbers
 num_0=??p0700.wav
 num_1=??pz1.wav
 num_2=??pz2.wav
@@ -800,9 +777,6 @@ num_9600s=??pt9h6.wav
 num_9700s=??pt9h7.wav
 num_9800s=??pt9h8.wav
 num_9900s=??pt9h9.wav
-num_10000s=??pt10h0.wav
-
-#Officer_Numbers
 of_1_num_100s=??of1_100.wav
 of_1_num_200s=??of1_200.wav
 of_1_num_300s=??of1_300.wav
@@ -943,8 +917,6 @@ of_4_num_3200s=??of4_3200.wav
 of_4_num_3300s=??of4_3300.wav
 of_4_num_3400s=??of4_3400.wav
 of_4_num_3500s=??of4_3500.wav
-
-#Merchant_Numbers
 me_1_num_100s=??h1_z100.wav
 me_1_num_200s=??h1_z200.wav
 me_1_num_300s=??h1_z300.wav
