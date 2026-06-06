@@ -13,7 +13,13 @@ static uint32_t rng_next(void)
     x ^= x << 13; x ^= x >> 17; x ^= x << 5;
     return g_emu.rng_state = x;
 }
-static void sys_rng(void) { ret(rng_next()); }
+/* Return a NON-NEGATIVE value (clear bit 31). The device's RNG syscall yields a
+ * positive number; callers like sub_1E5F8 treat the result as signed — they do
+ * `asr #10` then a modulo to pick an array index. A full-32-bit (sign-bit-set)
+ * value there shifts to a negative number → negative modulo → negative index,
+ * e.g. the quest/news free-port pick in sub_1BC10 reads a stack pointer and the
+ * caller faults at 0x1da6c. Masking the sign bit fixes that crash. */
+static void sys_rng(void) { ret(rng_next() & 0x7FFFFFFFu); }
 
 static void sys_get_boot_args(void)  /* 0x1070: &a,&b -> 0 */
 {
@@ -33,7 +39,7 @@ static void sys_input_read(void)     /* 0x1058: &out -> 0 */
         /* Advance #welintro/#join etc. with YES (bit6). At #choose_game the battle
          * scenario presses NO (bit5) twice (reject beginner+profi -> NORMAL); the
          * regression keeps pressing YES (bit6) at #choose_game_1 -> BEGINNER. */
-        if (g_emu.scenario == 1 && strstr(v, "choose_game")) {
+        if ((g_emu.scenario == 1 || g_emu.scenario == 2) && strstr(v, "choose_game")) {
             if ((t % 3000) < 300) mask |= 0x0020;            /* NO -> normal */
         } else if (t > 6000 && (t % 4000) < 300) {
             mask |= 0x0040;                                  /* YES -> advance / beginner */
@@ -96,6 +102,18 @@ static void sys_input_read(void)     /* 0x1058: &out -> 0 */
                 /* Headless only: auto-attack with KANONEN (bit 9) to resolve the
                  * battle. Interactively, control is left to the user's buttons. */
                 if (g_emu.headless && g_emu.in_battle && (t % 4000) < 300) mask |= 0x0200;
+            } else if (g_emu.scenario == 2) {
+                /* NEWS/QUEST repro: normal mode, NO pirate seeding. Load an offered
+                 * cargo and cycle the ship through every port (incl. non-buying ones)
+                 * turn after turn, so the calendar advances and a turn reaches the
+                 * quest/news distribution (sub_1DF54 -> sub_1D754, wild read @0x1da6c). */
+                if (g_emu.sel_cargo == 0)
+                    g_emu.sel_cargo = g_emu.offered[0] ? g_emu.offered[0] : 1;
+                else if (putfig && g_emu.sel_dest < 0) {
+                    static int dest_cycle = 0;
+                    g_emu.sel_dest = (dest_cycle++) & 7;
+                }
+                if (strstr(v, "equip_offer") && (t % 3000) < 200) mask |= 0x0020;  /* decline merchant */
             } else {
                 /* Regression: P1 grain->Puerto Plata; P2 grain->Curacao(bad)->valid; then buy. */
                 if (g_emu.active_color == 1) {

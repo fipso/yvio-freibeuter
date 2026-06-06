@@ -20,6 +20,7 @@
  * Setup: SKIP = skip intro; OK = beginner game, NO = reject -> normal/profi;
  * click a JOIN slot to register a player; OK = start. */
 #include "emu.h"
+#include "input.h"
 #include "raylib.h"
 #include <stdio.h>
 
@@ -36,9 +37,9 @@ static const int   REG_FIELD[4] = { 17, 16, 15, 14 };   /* blue,green,red,yellow
 static const char *CARGONAME[4] = { "Getreide", "Holz", "Tabak", "Rum" };
 static const Color CARGOVAL[4]  = { {220,190,90,255}, {150,110,60,255}, {120,150,70,255}, {170,70,60,255} };
 
-static bool g_present[12];   /* input-mask figure presence (ports) */
-static int  g_pulse[12];     /* keyboard momentary-tap timers (ports) */
-static int  g_btn_pulse[9];  /* OK/NO/SKIP/REPEAT/KAUFEN/FEILSCHEN + KANONEN/ENTERN/SEGELN */
+/* Input pulse/presence state + the button->mask bit table now live in input.c
+ * (shared with the WebSocket server). ui.c only reads back port presence for
+ * rendering via input_port_get(). */
 
 static float SW(void) { return (float)GetScreenWidth(); }
 static float SH(void) { return (float)GetScreenHeight(); }
@@ -127,53 +128,33 @@ void ui_poll(void)
         if (g_emu.in_game) {
             if (hit) g_emu.sel_dest = (g_emu.sel_dest == i) ? -1 : i;
         } else {
-            if (click && CheckCollisionPointRec(m, port_rect(i))) g_present[i] = !g_present[i];
-            if (IsKeyPressed(KEY_ONE + i)) g_pulse[i] = 4;
+            if (click && CheckCollisionPointRec(m, port_rect(i))) input_port_set(i, !input_port_get(i));
+            if (IsKeyPressed(KEY_ONE + i)) input_port_pulse(i);
         }
     }
 
-    uint32_t mask = 0;
-    for (int i = 0; i < 12; i++) {
-        if (g_present[i]) mask |= (1u << i);
-        if (g_pulse[i] > 0) { mask |= (1u << i); g_pulse[i]--; }
-    }
     /* Console buttons: one-shot pulses (press-edge -> fixed window -> release),
-     * mirroring the reliable port g_pulse model, so each click is exactly one
-     * clean rising edge with a guaranteed low gap (no double-click).
+     * via the shared input model (input.c owns the bit table + pulse timers).
      *   OK = bit 6 ONLY. Bit 12 is the game's "restart this step" gesture
-     *   (sub_10D08) which disables/re-enables input bits 0-11 and would wipe
-     *   bit 6's confirm edge in the same press -> it must NOT be on OK. Menu
-     *   SELECT (bit 12) is deferred until in-game menus are reached/tested. */
+     *   (sub_10D08) which would wipe bit 6's confirm edge -> kept off OK. */
     if (board_live) {
-        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) || (click && CheckCollisionPointRec(m, btn_rect(0)))) g_btn_pulse[0] = 6;
-        if (IsKeyPressed(KEY_N)                                || (click && CheckCollisionPointRec(m, btn_rect(1)))) g_btn_pulse[1] = 6;
-        if (IsKeyPressed(KEY_S)                                || (click && CheckCollisionPointRec(m, btn_rect(2)))) g_btn_pulse[2] = 6;
-        if (IsKeyPressed(KEY_R)                                || (click && CheckCollisionPointRec(m, btn_rect(3)))) g_btn_pulse[3] = 6;
+        if (IsKeyPressed(KEY_SPACE) || IsKeyPressed(KEY_ENTER) || (click && CheckCollisionPointRec(m, btn_rect(0)))) input_button_press(BTN_OK);
+        if (IsKeyPressed(KEY_N)                                || (click && CheckCollisionPointRec(m, btn_rect(1)))) input_button_press(BTN_NO);
+        if (IsKeyPressed(KEY_S)                                || (click && CheckCollisionPointRec(m, btn_rect(2)))) input_button_press(BTN_SKIP);
+        if (IsKeyPressed(KEY_R)                                || (click && CheckCollisionPointRec(m, btn_rect(3)))) input_button_press(BTN_REPEAT);
         if (g_emu.in_game) {   /* merchant trading: read by sub_13868 (bits 0/1/5) at a port */
-            if (IsKeyPressed(KEY_K) || (click && CheckCollisionPointRec(m, btn_rect(4)))) g_btn_pulse[4] = 6;
-            if (IsKeyPressed(KEY_F) || (click && CheckCollisionPointRec(m, btn_rect(5)))) g_btn_pulse[5] = 6;
+            if (IsKeyPressed(KEY_K) || (click && CheckCollisionPointRec(m, btn_rect(4)))) input_button_press(BTN_KAUFEN);
+            if (IsKeyPressed(KEY_F) || (click && CheckCollisionPointRec(m, btn_rect(5)))) input_button_press(BTN_FEILSCHEN);
         }
     }
     if (g_emu.in_battle) {   /* sea-battle maneuver: read by sub_13858/60 (bits 9/10/11) */
-        if (IsKeyPressed(KEY_C) || (click && CheckCollisionPointRec(m, bat_rect(0)))) g_btn_pulse[6] = 6;
-        if (IsKeyPressed(KEY_E) || (click && CheckCollisionPointRec(m, bat_rect(1)))) g_btn_pulse[7] = 6;
-        if (IsKeyPressed(KEY_G) || (click && CheckCollisionPointRec(m, bat_rect(2)))) g_btn_pulse[8] = 6;
+        if (IsKeyPressed(KEY_C) || (click && CheckCollisionPointRec(m, bat_rect(0)))) input_button_press(BTN_KANONEN);
+        if (IsKeyPressed(KEY_E) || (click && CheckCollisionPointRec(m, bat_rect(1)))) input_button_press(BTN_ENTERN);
+        if (IsKeyPressed(KEY_G) || (click && CheckCollisionPointRec(m, bat_rect(2)))) input_button_press(BTN_SEGELN);
     }
-    static const uint32_t BTN_BITS[9] = {
-        (1u << 6),               /* OK        = YES / confirm (universal: setup, join, start) */
-        (1u << 5) | (1u << 14),  /* NO        = reject (5) + menu BACK (14) + merchant DECLINE (5) */
-        (1u << 7) | (1u << 13),  /* SKIP      = skip intro (7) + menu FORWARD (13) */
-        (1u << 8),               /* REPEAT    = re-ask the current spoken prompt (8) */
-        (1u << 0),               /* KAUFEN    = accept/buy the merchant's price (bit 0) */
-        (1u << 1),               /* FEILSCHEN = haggle the merchant's price (bit 1) */
-        (1u << 9),               /* KANONEN   = battle: attack with cannons (bit 9) */
-        (1u << 10),              /* ENTERN    = battle: board with sailors (bit 10) */
-        (1u << 11),              /* SEGELN    = battle: sail away/flee (bit 11; quest/PvP only) */
-    };
-    for (int i = 0; i < 9; i++) if (g_btn_pulse[i] > 0) { mask |= BTN_BITS[i]; g_btn_pulse[i]--; }
 
-    g_emu.input_mask = mask;
-    g_emu.fast = IsKeyDown(KEY_TAB);
+    input_build_mask();
+    input_set_fast(IsKeyDown(KEY_TAB));
 }
 
 /* Active player's equipment + dukaten — one line under the title (gameplay). */
@@ -252,7 +233,7 @@ void ui_draw(void)
         Rectangle r = port_rect(i);
         bool dest = g_emu.in_game && g_emu.sel_dest == i;
         DrawRectangleRec(r, dest ? (Color){ 200,150,40,255 }
-                              : (g_present[i] ? (Color){ 40,90,60,255 } : (Color){ 30,44,66,255 }));
+                              : (input_port_get(i) ? (Color){ 40,90,60,255 } : (Color){ 30,44,66,255 }));
         DrawRectangleLinesEx(r, 2, dest ? (Color){ 255,220,120,255 } : (Color){ 90,120,160,255 });
         DrawText(PORTS[i], (int)r.x + 10, (int)r.y + 8, fs(0.026f), RAYWHITE);
         DrawText(g_emu.in_game ? "target port (sail here)" : TextFormat("port %d (key %d)", i, i + 1),
@@ -291,6 +272,19 @@ void ui_draw(void)
 
     /* Sea-battle overlay (drawn over the board when a fight is active). */
     if (g_emu.in_battle) draw_battle();
+
+    /* Crash banner: the guest took an unrecoverable fault (e.g. the known
+     * quest/news wild-read @0x1da6c). We stop stepping and show this instead of
+     * spamming the console / freezing. */
+    if (g_emu.crashed) {
+        DrawRectangle(0, 0, (int)SW(), (int)SH(), (Color){ 0, 0, 0, 205 });
+        int xs = (int)(SW() * 0.08f);
+        DrawText("SPIEL ABGESTUERZT", xs, (int)(SH() * 0.40f), fs(0.05f), (Color){ 240, 90, 90, 255 });
+        DrawText(TextFormat("Lesefehler @0x%08x  (PC 0x%08x)", g_emu.fault_addr, g_emu.fault_pc),
+                 xs, (int)(SH() * 0.50f), fs(0.026f), RAYWHITE);
+        DrawText("Bekannter Quest/Nachrichten-Bug. Bitte das Programm neu starten.",
+                 xs, (int)(SH() * 0.56f), fs(0.024f), (Color){ 240, 220, 120, 255 });
+    }
 
     /* Software cursor + hover highlight (Wayland-proof aiming). During a battle the
      * board is disabled, so suppress its hover outlines (the maneuver buttons draw

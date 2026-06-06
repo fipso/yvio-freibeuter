@@ -27,6 +27,7 @@ struct cpu {
     bool           syscall_pending; /* set by hook before uc_emu_stop */
     bool           halted;
     bool           faulted;
+    uint32_t       fault_addr;      /* offending data address on the fault */
 };
 
 static const int kArmReg[16] = {
@@ -144,10 +145,14 @@ void cpu_set_ctx(cpu_t *c, const cpu_ctx_t *ctx)
 static bool hook_mem_invalid(uc_engine *uc, uc_mem_type type, uint64_t addr,
                              int size, int64_t value, void *ud)
 {
-    (void)uc; (void)ud;
+    (void)uc;
+    cpu_t *c = (cpu_t *)ud;
+    if (c) c->fault_addr = (uint32_t)addr;
     const char *t = type == UC_MEM_WRITE_UNMAPPED ? "WRITE" :
                     type == UC_MEM_READ_UNMAPPED  ? "READ"  :
                     type == UC_MEM_FETCH_UNMAPPED ? "FETCH" : "PROT";
+    /* Printed once: cpu_run short-circuits once faulted, so this hook won't fire
+     * again for the same dead PC (no per-frame spam). */
     fprintf(stderr, "  mem-invalid %s @0x%08x size=%d value=0x%llx\n",
             t, (uint32_t)addr, size, (unsigned long long)value);
     return false; /* don't fix up -> emulation stops with the error */
@@ -174,7 +179,7 @@ int cpu_set_syscall_hook(cpu_t *c, uint32_t lo, uint32_t hi, cpu_syscall_cb cb, 
     return err == UC_ERR_OK ? 0 : -1;
 }
 
-#define MAX_WATCH 4
+#define MAX_WATCH 12   /* boot.c installs 7 gameplay watches; was 4 -> 3 silently dropped */
 static struct { cpu_t *c; cpu_syscall_cb cb; void *user; uc_hook h; } g_watch[MAX_WATCH];
 static int g_nwatch;
 
@@ -200,6 +205,7 @@ int cpu_watch(cpu_t *c, uint32_t addr, cpu_syscall_cb cb, void *user)
 cpu_status_t cpu_run(cpu_t *c, uint64_t max_insns)
 {
     if (c->halted) return CPU_HALT;
+    if (c->faulted) return CPU_FAULT;   /* don't re-run a dead PC -> no fault spam */
 
     uint32_t pc = cpu_reg(c, 15);
     uint32_t cpsr = cpu_cpsr(c);
@@ -219,6 +225,9 @@ cpu_status_t cpu_run(cpu_t *c, uint64_t max_insns)
 }
 
 void cpu_stop(cpu_t *c) { uc_emu_stop(c->uc); }
+
+bool     cpu_faulted(cpu_t *c)    { return c->faulted; }
+uint32_t cpu_fault_addr(cpu_t *c) { return c->fault_addr; }
 
 /* ---- lifecycle ---- */
 

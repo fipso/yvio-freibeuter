@@ -106,6 +106,12 @@ typedef struct emu {
     char     last_voice_key[64];
     bool     fast;        /* fast-forward (skip intro): run fast + mute audio */
 
+    /* unrecoverable guest fault (e.g. the quest/news wild-read @0x1da6c): set
+     * once; the host loops stop stepping and surface it instead of re-running. */
+    bool     crashed;
+    uint32_t fault_pc;
+    uint32_t fault_addr;
+
     /* trace + headless run caps (0 = unlimited) */
     bool     trace;
     bool     script;     /* headless: auto-drive skip/choose/register for testing */

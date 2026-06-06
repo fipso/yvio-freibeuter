@@ -143,9 +143,16 @@ the 2 goods the port offers (`*(v2+8)`[1],[2]).
   during cargo selection → the panel could show 0 / Dukaten 0). (3) the battle overlay now **closes** on the first
   watched non-battle/non-maneuver voice after a fight (`#credit`/`#goods_reward`/etc.) plus a 10 s no-voice timeout —
   the win/lose outcomes play via the unwatched `sub_3394`, so the old close-on-outcome list never fired interactively.
-- **Known issue (separate):** **normal/long mode faults** in the quest-pirate distribution code
-  (`sub_1DF54`→`sub_1D754`, wild read ~`0x1da6c`) when a turn reaches it via a *bad* delivery (cycling to a
-  non-buying port). With clean deliveries normal mode is stable; the fault is a latent HLE gap to fix later.
+- **FIXED — quest/news wild-read fault** (`sub_1DF54`→`sub_1D754`, read @`0x1da6c`), seen "reading the
+  news for January" and in normal/long mode after bad deliveries. Root cause: `sys_rng` (0x1064) returned a
+  full 32-bit value, but the game treats it as **signed** — `sub_1E5F8` does `asr #10` then a modulo to pick
+  an array index. A sign-bit-set RNG → negative shift → negative modulo → `sub_1BC10` reads `free_list[neg]`
+  (a stack pointer) and the caller indexes `port_table[that*16]` → unmapped read. Fix: `sys_rng` masks the
+  sign bit (`& 0x7FFFFFFF`) in `syscall.c` (the device RNG is non-negative). Repro: `--scenario news`
+  (normal mode, no pirate seeding, cycles deliveries); `--trace` dumps the port/pirate tables at any fault
+  (`diag_dump_fault` in `sched.c`). Also hardened: a guest fault is now non-fatal — `cpu_run` won't re-run a
+  dead PC, the host loops stop stepping (`g_emu.crashed`), the desktop shows a crash banner, and a server
+  lobby ends immediately with a "game crashed" message instead of spamming the console forever.
 - **Deferred:** `0x1120` (a blocking sem-wait at `sub_24944`) is still stubbed to return 0
   (tolerated so far); the in-game menu SELECT (bit 12) still context-gated for later.
 

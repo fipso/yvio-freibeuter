@@ -12,6 +12,7 @@ pkg_check_modules(RAYLIB  REQUIRED IMPORTED_TARGET raylib)
 
 set(SRC
   src/main.c
+  src/boot.c
   src/cpu_unicorn.c
   src/elf.c
   src/trace.c
@@ -23,8 +24,14 @@ set(SRC
   src/audio_host.c
   src/rfid.c
   src/ui.c
+  src/input.c
+  src/server.c
+  src/vendor/mongoose.c
 )
 
 add_executable(yvio-emu ${SRC})
-target_include_directories(yvio-emu PRIVATE src)
+target_include_directories(yvio-emu PRIVATE src src/vendor)
+# Trim mongoose to plain HTTP+WebSocket: no TLS, no directory listing.
+set_source_files_properties(src/vendor/mongoose.c PROPERTIES
+  COMPILE_DEFINITIONS "MG_TLS=MG_TLS_NONE;MG_ENABLE_DIRLIST=0")
 target_link_libraries(yvio-emu PRIVATE PkgConfig::UNICORN PkgConfig::RAYLIB m pthread)

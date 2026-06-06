@@ -136,9 +136,43 @@ void sched_init(uint32_t boot_pc, uint32_t boot_sp)
     cpu_set_reg(g_emu.cpu, 14, 0xFFFFFFFCu);
 }
 
+/* Diagnostic for the quest/news wild-read fault (sub_1BC10 -> 0x1da6c):
+ * dump the port-identity table (0x40000168, 8x16B, byte0=id), the 5 pirate
+ * records (0x400002F0, 12B, +0 active /+1 type /+2 loc), the wild index r0, and
+ * the free-port count the quest code computes (crash when it underflows to 0). */
+static void diag_dump_fault(void)
+{
+    uint32_t r0 = cpu_reg(g_emu.cpu, 0);
+    fprintf(stderr, "  [diag] r0=0x%08x -> port_table+ r0*16 = 0x%08x\n",
+            r0, 0x40000168u + (r0 << 4));
+    uint8_t id[8];
+    fprintf(stderr, "  [diag] port identities @0x40000168:");
+    for (int p = 0; p < 8; p++) {
+        cpu_read(g_emu.cpu, 0x40000168u + 16u * p, &id[p], 1);
+        fprintf(stderr, " %02x", id[p]);
+    }
+    fprintf(stderr, "\n  [diag] pirate recs @0x400002F0 (active/type/loc):");
+    uint8_t loc[5];
+    for (int k = 0; k < 5; k++) {
+        uint8_t a = 0, t = 0;
+        cpu_read(g_emu.cpu, 0x400002F0u + 12u * k + 0, &a, 1);
+        cpu_read(g_emu.cpu, 0x400002F0u + 12u * k + 1, &t, 1);
+        cpu_read(g_emu.cpu, 0x400002F0u + 12u * k + 2, &loc[k], 1);
+        fprintf(stderr, " [%d:%02x/%02x/%02x]", k, a, t, loc[k]);
+    }
+    int free_count = 0;
+    for (int p = 0; p < 8; p++) {
+        int found = 0;
+        for (int k = 0; k < 5; k++) if (loc[k] == id[p]) { found = 1; break; }
+        if (!found) free_count++;
+    }
+    fprintf(stderr, "\n  [diag] free_count=%d (crash if 0)\n", free_count);
+}
+
 /* The host run loop: drive the CPU, handle syscalls, idle-skip virtual time. */
 void sched_run(void)
 {
+    if (g_emu.crashed) { g_emu.running = false; return; }   /* don't re-run a faulted guest */
     g_emu.running = true;
     const uint64_t BUDGET = 50000000ull;
 
@@ -170,7 +204,14 @@ void sched_run(void)
         }
         if (st == CPU_OK) continue;          /* budget exhausted; keep going */
         if (st == CPU_HALT) { printf("sched: halt\n"); break; }
-        printf("sched: fault @0x%08x\n", cpu_reg(g_emu.cpu, 15));
+        /* Unrecoverable fault: latch it so the host loop stops stepping (and, in
+         * server mode, ends the lobby) instead of re-running the dead PC. */
+        g_emu.crashed   = true;
+        g_emu.fault_pc  = cpu_reg(g_emu.cpu, 15);
+        g_emu.fault_addr = cpu_fault_addr(g_emu.cpu);
+        printf("sched: fault @0x%08x (read 0x%08x) — game halted\n",
+               g_emu.fault_pc, g_emu.fault_addr);
+        if (g_emu.trace) diag_dump_fault();   /* dump quest tables for the 0x1da6c bug */
         break;
     }
 }

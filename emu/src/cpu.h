@@ -59,6 +59,13 @@ int cpu_watch(cpu_t *, uint32_t addr, cpu_syscall_cb cb, void *user);
 cpu_status_t cpu_run(cpu_t *, uint64_t max_insns);
 void cpu_stop(cpu_t *);
 
+/* Fault state: set once when the guest takes an unrecoverable fault (unmapped
+ * access / decode error). Once faulted, cpu_run returns CPU_FAULT without
+ * re-entering the engine, so the host loop can stop instead of re-running the
+ * dead PC. cpu_fault_addr() is the offending data address (0 for a fetch/decode). */
+bool     cpu_faulted(cpu_t *);
+uint32_t cpu_fault_addr(cpu_t *);
+
 /* Register / context access. */
 uint32_t cpu_reg(cpu_t *, int idx);            /* idx 0..15 */
 void     cpu_set_reg(cpu_t *, int idx, uint32_t val);
