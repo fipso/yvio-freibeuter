@@ -1,0 +1,7 @@
+build/
+saves/
+compile_commands.json
+*.o
+trace.log
+build.log
+docs/*.txt
