@@ -62,8 +62,16 @@ static void on_voice(cpu_t *cpu, uint32_t addr, uint32_t idx, void *user)
      * a fight (#credit / #title / #goods_reward / #..._success / #take_new_goods) is
      * always non-battle, so this closes promptly without hooking the hot sub_3394.
      * (A 10 s no-voice timeout in the frame loop is the final safety net.) */
-    bool is_battle_voice = (strstr(d, "play_maneuver") || strstr(d, "maneuver")) ||
-                           (strstr(d, "_battle") && !strstr(d, "battle_won") && !strstr(d, "battle_lost"));
+    /* Real interactive sea-battle prompts are always officer lines ("of_<N>_...")
+     * that end in a #..._play_maneuver choice (of_N_battle*, of_N_quest_pirate_battle,
+     * of_N_multiquest_pirate_battle, of_N_quest_vip_battle). Quest mission briefings
+     * such as #quest_battle_N, #quest_miss_battle_N and #multiquest_silver_battle just
+     * mention "battle" with no maneuver choice and must NOT pop the overlay. */
+    const char *k = (d[0] == '#') ? d + 1 : d;       /* skip optional leading '#' */
+    bool officer = (strncmp(k, "of_", 3) == 0);
+    bool is_battle_voice = officer &&
+        (strstr(d, "maneuver") ||
+         (strstr(d, "_battle") && !strstr(d, "battle_won") && !strstr(d, "battle_lost")));
     if (is_battle_voice) {
         g_emu.in_battle = true;
         g_emu.battle_ms = g_emu.virtual_ms;

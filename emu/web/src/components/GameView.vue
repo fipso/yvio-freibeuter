@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { store, api, toggleAudio } from '../lib/socket'
 import EquipmentPanel from './EquipmentPanel.vue'
 import CargoBar from './CargoBar.vue'
-import PortGrid from './PortGrid.vue'
+import BoardMap from './BoardMap.vue'
 import ConsoleButtons from './ConsoleButtons.vue'
 import BattleOverlay from './BattleOverlay.vue'
 import VoiceHud from './VoiceHud.vue'
@@ -18,8 +18,6 @@ function audio() { toggleAudio() }
 
 <template>
   <div class="game">
-    <div class="board-bg" />
-
     <div class="hud-top">
       <div class="left">
         <button class="ghost" @click="leave">← Lobby</button>
@@ -42,8 +40,8 @@ function audio() { toggleAudio() }
 
     <div v-else class="layout">
       <EquipmentPanel v-if="st.in_game" :state="st" />
+      <BoardMap :state="st" />
       <CargoBar :state="st" />
-      <PortGrid :state="st" />
       <ConsoleButtons :state="st" />
       <VoiceHud :state="st" />
       <p class="hint">
@@ -73,13 +71,6 @@ function audio() { toggleAudio() }
 
 <style scoped>
 .game { position: relative; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.board-bg {
-  position: absolute; inset: 0;
-  background-image: url('/board.webp');
-  background-size: cover; background-position: center;
-  opacity: .12; filter: saturate(1.1);
-  pointer-events: none;
-}
 .hud-top {
   position: relative; z-index: 1;
   display: flex; align-items: center; justify-content: space-between;
@@ -96,7 +87,8 @@ function audio() { toggleAudio() }
 .loading { position: relative; z-index: 1; color: var(--muted); padding: 40px; text-align: center; }
 .layout {
   position: relative; z-index: 1;
-  flex: 1; display: flex; flex-direction: column; gap: 14px;
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 14px;
   padding: 8px 18px 22px; max-width: 1100px; width: 100%; margin: 0 auto;
 }
 .hint { color: var(--gold); font-size: 13px; opacity: .85; margin: 2px 0 0; }
