@@ -8,6 +8,13 @@ const props = defineProps<{ state: GameState }>()
 const c = computed(() => props.state.active_color)
 const colName = computed(() => (c.value >= 1 && c.value <= 4 ? COLNAME[c.value - 1] : '–'))
 const colCss = computed(() => (c.value >= 1 && c.value <= 4 ? COLCSS[c.value - 1] : '#aab'))
+
+// PvP capture battle: the enemy is the opposing player, shown by colour. Otherwise
+// it's an NPC pirate (enemy stats come from sub_E970; see emu/src/rfid.c).
+const ec = computed(() => props.state.enemy_color)
+const isPvp = computed(() => props.state.pvp_battle && ec.value >= 1 && ec.value <= 4)
+const enemyName = computed(() => (isPvp.value ? COLNAME[ec.value - 1] : ''))
+const enemyCss = computed(() => (isPvp.value ? COLCSS[ec.value - 1] : '#ef6a6a'))
 </script>
 
 <template>
@@ -16,8 +23,11 @@ const colCss = computed(() => (c.value >= 1 && c.value <= 4 ? COLCSS[c.value - 1
       <h2>SEEGEFECHT</h2>
 
       <div class="sides">
-        <div class="side enemy">
-          <h3>Feindliches Piratenschiff (#{{ state.pirate_idx }})</h3>
+        <div class="side enemy" :style="isPvp ? { borderColor: enemyCss } : {}">
+          <h3 :style="{ color: enemyCss }">
+            <template v-if="isPvp">Gegner: Spieler {{ enemyName }}</template>
+            <template v-else>Feindliches Piratenschiff (#{{ state.pirate_idx }})</template>
+          </h3>
           <div class="row">
             <span>Kanonen {{ state.pirate_cannons }}</span>
             <span>Matrosen {{ state.pirate_sailors }}</span>

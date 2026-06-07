@@ -26,6 +26,8 @@ export interface GameState {
   pirate_cannons: number
   pirate_sailors: number
   pirate_sails: number
+  pvp_battle: boolean    // true during a player-vs-player capture battle
+  enemy_color: number    // PvP opponent's color 1..4 (0 = NPC/none)
 }
 
 export interface LobbyInfo {

@@ -175,8 +175,13 @@ static void draw_battle(void)
     int xs = (int)(SW() * 0.06f), c = g_emu.active_color;
     DrawText("SEEGEFECHT", xs, (int)(SH() * 0.10f), fs(0.052f), (Color){ 240,180,90,255 });
 
-    DrawText(TextFormat("Feindliches Piratenschiff (#%d)", g_emu.pirate_idx),
-             xs, (int)(SH() * 0.21f), fs(0.034f), (Color){ 235,90,90,255 });
+    int ec = g_emu.enemy_color;
+    if (g_emu.pvp_battle && ec >= 1 && ec <= 4)
+        DrawText(TextFormat("Gegner: Spieler %s", COLNAME[ec - 1]),
+                 xs, (int)(SH() * 0.21f), fs(0.034f), COLVAL[ec - 1]);
+    else
+        DrawText(TextFormat("Feindliches Piratenschiff (#%d)", g_emu.pirate_idx),
+                 xs, (int)(SH() * 0.21f), fs(0.034f), (Color){ 235,90,90,255 });
     DrawText(TextFormat("Kanonen %d    Matrosen %d    Segel %d",
                         g_emu.pirate_cannons, g_emu.pirate_sailors, g_emu.pirate_sails),
              xs, (int)(SH() * 0.28f), fs(0.030f), RAYWHITE);

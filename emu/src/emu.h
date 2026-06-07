@@ -93,7 +93,9 @@ typedef struct emu {
     bool     in_battle;
     uint32_t battle_ms;     /* virtual_ms of the last battle/maneuver voice (timeout) */
     int      pirate_idx;    /* opponent pirate index 0..4 */
-    int      pirate_cannons, pirate_sailors, pirate_sails;
+    int      pirate_cannons, pirate_sailors, pirate_sails;   /* PvE: from sub_E970; PvP: opponent record */
+    bool     pvp_battle;    /* true during a player-vs-player capture battle */
+    int      enemy_color;   /* PvP opponent's colour 1..4 (0 = NPC/none) */
 
     /* audio bridge state */
     bool     audio_running;

@@ -80,12 +80,97 @@ static int active_player_color(void)
     return found;
 }
 
+/* In a player-vs-player battle the on-screen enemy is the OTHER player sharing the
+ * active player's board field. The firmware pairs them with the collision test at
+ * 0x12740 (same ship-pos rec+8, different colour rec+2) and runs sub_C6C0, which
+ * never calls sub_E970 — so pirate_* would otherwise show stale NPC stats. We detect
+ * PvP structurally: while the battle overlay is up (in_battle), if another player is
+ * co-located on the active player's field, this is PvP — show that player's real
+ * combat totals (rec+0x23 sails, +0x25 cannons, +0x26 sailors = the eq_* totals) and
+ * its colour. Otherwise it's an NPC pirate and pirate_* (from sub_E970) is left as-is.
+ * A one-time-per-battle --trace dump prints the player list + firmware battle flag so
+ * the contract can be verified on real PvP fights. */
+static void resolve_pvp_opponent(void)
+{
+    static int dumped = 0;
+    static int last_log = -1;
+    g_emu.enemy_color = 0;
+    g_emu.pvp_battle  = false;
+    if (!g_emu.in_battle) { dumped = 0; last_log = -1; return; }
+
+    uint32_t head = 0, turn = 0;
+    cpu_read(g_emu.cpu, G_PLAYER_HEAD, &head, 4);
+    cpu_read(g_emu.cpu, G_TURN_CTR, &turn, 4);
+
+    if (trace_on() && !dumped) {
+        dumped = 1;
+        uint32_t bs = 0; uint8_t bf = 0;
+        cpu_read(g_emu.cpu, 0x4000041Cu, &bs, 4);   /* -> current-battle struct (sub_C6C0) */
+        if (bs >= 0x40000000u && bs < 0x40100000u) cpu_read(g_emu.cpu, bs, &bf, 1);
+        printf("  >>> BATTLE list (turn=%u battleflag@%08x=%d voice=%s):\n",
+               turn, bs, bf, g_emu.last_voice_key);
+        uint32_t r = head;
+        for (int i = 0; i < 8 && r >= 0x40000000u && r < 0x40100000u; i++) {
+            uint8_t c = 0, kan = 0, mat = 0, seg = 0, bf2 = 0; uint32_t sp = 0, t12 = 0;
+            cpu_read(g_emu.cpu, r + 2, &c, 1);   cpu_read(g_emu.cpu, r + 8, &sp, 4);
+            cpu_read(g_emu.cpu, r + 12, &t12, 4);
+            cpu_read(g_emu.cpu, r + 0x25, &kan, 1); cpu_read(g_emu.cpu, r + 0x26, &mat, 1);
+            cpu_read(g_emu.cpu, r + 0x23, &seg, 1); cpu_read(g_emu.cpu, r + 0x28, &bf2, 1);
+            printf("      rec[%d]@%08x color=%d field=%08x active=%d kan=%d mat=%d seg=%d bflag=%d\n",
+                   i, r, c, sp, (int)(t12 == turn), kan, mat, seg, bf2);
+            cpu_read(g_emu.cpu, r + 88, &r, 4);
+        }
+    }
+
+    /* The active player's board field + colour (the resolvable "Du" combatant). */
+    uint32_t active_field = 0; uint8_t active_color = 0;
+    uint32_t rec = head;
+    for (int i = 0; i < 8 && rec >= 0x40000000u && rec < 0x40100000u; i++) {
+        uint32_t t12 = 0; cpu_read(g_emu.cpu, rec + 12, &t12, 4);
+        if (t12 == turn) {
+            cpu_read(g_emu.cpu, rec + 2, &active_color, 1);
+            cpu_read(g_emu.cpu, rec + 8, &active_field, 4);
+            break;
+        }
+        cpu_read(g_emu.cpu, rec + 88, &rec, 4);
+    }
+    if (!active_color || !active_field) return;
+
+    /* The opponent: a different colour on the SAME field (firmware collision test). */
+    rec = head;
+    for (int i = 0; i < 8 && rec >= 0x40000000u && rec < 0x40100000u; i++) {
+        uint8_t c = 0; uint32_t sp = 0;
+        cpu_read(g_emu.cpu, rec + 2, &c, 1);
+        cpu_read(g_emu.cpu, rec + 8, &sp, 4);
+        if (c >= 1 && c <= 4 && c != active_color && sp == active_field) {
+            uint8_t v[3];
+            cpu_read(g_emu.cpu, rec + 0x23, &v[0], 1);   /* sails total   */
+            cpu_read(g_emu.cpu, rec + 0x25, &v[1], 1);   /* cannons total */
+            cpu_read(g_emu.cpu, rec + 0x26, &v[2], 1);   /* sailors total */
+            g_emu.pvp_battle     = true;
+            g_emu.enemy_color    = c;
+            g_emu.pirate_sails   = v[0];
+            g_emu.pirate_cannons = v[1];
+            g_emu.pirate_sailors = v[2];
+            int sig = c * 1000 + v[1] * 100 + v[2] * 10 + v[0];
+            if (trace_on() && sig != last_log) {
+                last_log = sig;
+                printf("  >>> PVP opponent color=%d cannons=%d sailors=%d sails=%d @vms=%u\n",
+                       c, v[1], v[2], v[0], g_emu.virtual_ms);
+            }
+            return;
+        }
+        cpu_read(g_emu.cpu, rec + 88, &rec, 4);
+    }
+    /* No co-located player -> NPC pirate battle; leave pirate_* (sub_E970). */
+}
+
 /* Public: refresh the active player's money/equipment into g_emu (for the HUD).
  * Called every frame so the panel + battle overlay are never stale (the RFID-
  * inventory path only runs during cargo selection). Read-only — no game state. */
 void rfid_refresh_stats(void)
 {
-    if (g_emu.in_game) active_player_color();
+    if (g_emu.in_game) { active_player_color(); resolve_pvp_opponent(); }
 }
 
 static void put_entry(uint8_t *tbl, int idx, uint8_t field_key)
@@ -104,12 +189,15 @@ static void rfid_sync_table(void)
     memset(tbl, 0xFF, sizeof tbl);     /* 0xFF = empty entry */
 
     if (!g_emu.in_game) {
-        /* Registration: one entry per present player figure (fields 14..17). */
-        int n = 0;
-        for (int f = 17; f >= 14 && n < 8; f--) {   /* fields 17..14 -> colors 1..4 */
+        /* Registration: seed each present figure at index colour-1, so sub_1F250
+         * (returns table-index+1) reports the figure's true colour even when lower
+         * colours are absent. Fields 17..14 -> colours 1..4 = 18-f. A running
+         * counter would collapse colours when a lower one is skipped (the 2nd
+         * present figure always landing at index 1 = green). */
+        for (int f = 17; f >= 14; f--) {
             if (!g_emu.figures[f].present) continue;
-            put_entry(tbl, n, (uint8_t)f);           /* key = field idx (0x0e..0x11) */
-            n++;
+            int color = 18 - f;                       /* 17->1 16->2 15->3 14->4 */
+            put_entry(tbl, color - 1, (uint8_t)f);     /* index colour-1; key 0x0e..0x11 */
         }
     } else {
         /* Cargo turn — single-figure model: the RFID reader only sees a figure
