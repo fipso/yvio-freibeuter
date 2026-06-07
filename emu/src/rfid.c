@@ -96,7 +96,11 @@ static void resolve_pvp_opponent(void)
     static int last_log = -1;
     g_emu.enemy_color = 0;
     g_emu.pvp_battle  = false;
-    if (!g_emu.in_battle) { dumped = 0; last_log = -1; return; }
+    if (!g_emu.in_battle) {
+        dumped = 0; last_log = -1;
+        g_emu.pvp_attacker_rec = 0; g_emu.pvp_pending = false;   /* clear capture at battle end */
+        return;
+    }
 
     uint32_t head = 0, turn = 0;
     cpu_read(g_emu.cpu, G_PLAYER_HEAD, &head, 4);
@@ -136,33 +140,112 @@ static void resolve_pvp_opponent(void)
     }
     if (!active_color || !active_field) return;
 
-    /* The opponent: a different colour on the SAME field (firmware collision test). */
+    /* Primary: the attacker captured at sub_C6C0 (boot.c). The firmware switches the
+     * turn to the DEFENDER for the maneuver prompt, so "Du" (active_color above) is the
+     * defender and the enemy must be the ATTACKER. Robust because the firmware matches
+     * combatants by PORT BYTE, not by rec+8 pointer — so the old pointer scan failed. */
+    uint32_t a = g_emu.pvp_attacker_rec;
+    if (g_emu.pvp_pending && a >= 0x40000000u && a < 0x40100000u) {
+        uint8_t ac = 0, v[3];
+        cpu_read(g_emu.cpu, a + 2, &ac, 1);
+        cpu_read(g_emu.cpu, a + 0x23, &v[0], 1);   /* sails total   */
+        cpu_read(g_emu.cpu, a + 0x25, &v[1], 1);   /* cannons total */
+        cpu_read(g_emu.cpu, a + 0x26, &v[2], 1);   /* sailors total */
+        if (ac >= 1 && ac <= 4 && ac != active_color) {
+            g_emu.pvp_battle     = true;
+            g_emu.enemy_color    = ac;
+            g_emu.pirate_sails   = v[0];
+            g_emu.pirate_cannons = v[1];
+            g_emu.pirate_sailors = v[2];
+            int sig = ac * 1000 + v[1] * 100 + v[2] * 10 + v[0];
+            if (trace_on() && sig != last_log) {
+                last_log = sig;
+                printf("  >>> PVP enemy(attacker) color=%d cannons=%d sailors=%d sails=%d "
+                       "| Du(defender) color=%d @vms=%u\n",
+                       ac, v[1], v[2], v[0], active_color, g_emu.virtual_ms);
+            }
+            return;
+        }
+    }
+
+    /* Fallback (best effort): firmware-style co-location by PORT BYTE (byte0 at the
+     * ship-pos pointer), NOT rec+8 pointer equality. */
+    uint8_t active_port = 0xFF;
+    if (active_field >= 0x40000000u && active_field < 0x40100000u)
+        cpu_read(g_emu.cpu, active_field, &active_port, 1);
     rec = head;
-    for (int i = 0; i < 8 && rec >= 0x40000000u && rec < 0x40100000u; i++) {
-        uint8_t c = 0; uint32_t sp = 0;
+    for (int i = 0; i < 8 && active_port != 0xFF && rec >= 0x40000000u && rec < 0x40100000u; i++) {
+        uint8_t c = 0, spb = 0xFF; uint32_t sp = 0;
         cpu_read(g_emu.cpu, rec + 2, &c, 1);
         cpu_read(g_emu.cpu, rec + 8, &sp, 4);
-        if (c >= 1 && c <= 4 && c != active_color && sp == active_field) {
+        if (sp >= 0x40000000u && sp < 0x40100000u) cpu_read(g_emu.cpu, sp, &spb, 1);
+        if (c >= 1 && c <= 4 && c != active_color && spb == active_port) {
             uint8_t v[3];
-            cpu_read(g_emu.cpu, rec + 0x23, &v[0], 1);   /* sails total   */
-            cpu_read(g_emu.cpu, rec + 0x25, &v[1], 1);   /* cannons total */
-            cpu_read(g_emu.cpu, rec + 0x26, &v[2], 1);   /* sailors total */
+            cpu_read(g_emu.cpu, rec + 0x23, &v[0], 1);
+            cpu_read(g_emu.cpu, rec + 0x25, &v[1], 1);
+            cpu_read(g_emu.cpu, rec + 0x26, &v[2], 1);
             g_emu.pvp_battle     = true;
             g_emu.enemy_color    = c;
             g_emu.pirate_sails   = v[0];
             g_emu.pirate_cannons = v[1];
             g_emu.pirate_sailors = v[2];
-            int sig = c * 1000 + v[1] * 100 + v[2] * 10 + v[0];
-            if (trace_on() && sig != last_log) {
-                last_log = sig;
-                printf("  >>> PVP opponent color=%d cannons=%d sailors=%d sails=%d @vms=%u\n",
-                       c, v[1], v[2], v[0], g_emu.virtual_ms);
-            }
             return;
         }
         cpu_read(g_emu.cpu, rec + 88, &rec, 4);
     }
-    /* No co-located player -> NPC pirate battle; leave pirate_* (sub_E970). */
+    /* No PvP opponent resolvable -> NPC pirate battle; leave pirate_* (sub_E970). */
+}
+
+/* Map markers for the web UI: each player's current port, pirate-occupied ports, and
+ * silverfleet rumor ports. All port numbers here are the 0-based display index 0..7
+ * (consts.ts PORTS order). A player's port is the byte at its ship-position pointer
+ * (rec+8 -> &port_table[idx]); pirate occupation is the global slot table at
+ * 0x400002F0 (gate +1==1, port +2); silver rumors are placed by boot.c's
+ * on_silver_ports and a bit is dropped here once a player reaches that port. */
+#define G_PORT_TABLE   0x40000168u   /* 8 x 16 bytes; byte0 == display index 0..7 */
+#define G_PORT_END     0x400001E8u   /* G_PORT_TABLE + 8*16 */
+#define G_PIRATE_SLOTS 0x400002F0u   /* 5 x 12 bytes; +1 active gate, +2 port-identity */
+
+static int shippos_to_port(uint32_t sp)
+{
+    if (sp < G_PORT_TABLE || sp >= G_PORT_END) return -1;   /* in transit / off-board */
+    uint8_t b = 0; cpu_read(g_emu.cpu, sp, &b, 1);
+    return (b <= 7) ? (int)b : -1;
+}
+
+void map_refresh_markers(void)
+{
+    /* player_ports[]: walk the player list, derive each colour's current port. */
+    for (int i = 0; i < 4; i++) g_emu.player_ports[i] = -1;
+    uint32_t head = 0; cpu_read(g_emu.cpu, G_PLAYER_HEAD, &head, 4);
+    uint32_t rec = head;
+    for (int i = 0; i < 8 && rec >= 0x40000000u && rec < 0x40100000u; i++) {
+        uint8_t c = 0; cpu_read(g_emu.cpu, rec + 2, &c, 1);
+        if (c >= 1 && c <= 4) {
+            uint32_t sp = 0; cpu_read(g_emu.cpu, rec + 8, &sp, 4);
+            g_emu.player_ports[c - 1] = (int8_t)shippos_to_port(sp);
+        }
+        cpu_read(g_emu.cpu, rec + 88, &rec, 4);
+    }
+
+    /* pirate_ports: scan the global occupied-ports slot table (firmware collector
+     * mirror at 0x1b4c8). Authoritative each frame -> stale bits clear automatically. */
+    uint8_t pset = 0;
+    for (int s = 0; s < 5; s++) {
+        uint32_t base = G_PIRATE_SLOTS + 12u * (uint32_t)s;
+        uint8_t active = 0, loc = 0;
+        cpu_read(g_emu.cpu, base + 1, &active, 1);   /* active gate */
+        cpu_read(g_emu.cpu, base + 2, &loc, 1);      /* port identity == display index */
+        if (active == 1 && loc <= 7) pset |= (uint8_t)(1u << loc);
+    }
+    g_emu.pirate_ports = pset;
+
+    /* silver "reached -> remove": drop a rumor bit once any player is at that port. */
+    if (g_emu.silver_ports)
+        for (int i = 0; i < 4; i++) {
+            int pp = g_emu.player_ports[i];
+            if (pp >= 0 && pp <= 7) g_emu.silver_ports &= (uint8_t)~(1u << pp);
+        }
 }
 
 /* Public: refresh the active player's money/equipment into g_emu (for the HUD).
@@ -171,6 +254,7 @@ static void resolve_pvp_opponent(void)
 void rfid_refresh_stats(void)
 {
     if (g_emu.in_game) { active_player_color(); resolve_pvp_opponent(); }
+    map_refresh_markers();
 }
 
 static void put_entry(uint8_t *tbl, int idx, uint8_t field_key)

@@ -26,6 +26,8 @@
 #define ADDR_RFID_MATCH   0x0001F250u   /* sub_1F250(keyptr, out, &status): RFID match */
 #define ADDR_BATTLE       0x0001BD1Cu   /* sub_1BD1C(player, pirate_idx): per-pirate battle check */
 #define ADDR_PIRATE_STATS 0x0000E970u   /* sub_E970(level, cannons, sailors, sails): set enemy stats */
+#define ADDR_PVP_BATTLE   0x0000C6C0u   /* sub_C6C0(r0=attacker rec, r1=defender rec): PvP capture entry */
+#define ADDR_SILVER_PORTS 0x0000512Cu   /* #multiquest_silver builder: r0,r1,r2 = 3 rumor port indices */
 
 static void on_voice(cpu_t *cpu, uint32_t addr, uint32_t idx, void *user)
 {
@@ -78,6 +80,15 @@ static void on_voice(cpu_t *cpu, uint32_t addr, uint32_t idx, void *user)
     } else if (g_emu.in_battle) {
         g_emu.in_battle = false;
     }
+
+    /* Silverfleet rumors: the set is placed by on_silver_ports (#multiquest_silver) and
+     * a single bit is removed in map_refresh_markers when a player reaches that port.
+     * Finding the fleet (#multiquest_silver_battle) / a positive resolution clears the
+     * whole set — the remaining rumors are now moot. */
+    if (strstr(d, "multiquest_silver_battle") ||
+        strstr(d, "multiquest_silver_success") ||
+        strstr(d, "multiquest_silver_bought"))
+        g_emu.silver_ports = 0;
 }
 
 /* Sea battle: sub_1BD1C runs once per pirate to test the player's port; the one
@@ -104,6 +115,44 @@ static void on_pirate_stats(cpu_t *cpu, uint32_t addr, uint32_t idx, void *user)
         printf("  >>> PIRATE STATS pirate=%d cannons=%d sailors=%d sails=%d @vms=%u\n",
                g_emu.pirate_idx, g_emu.pirate_cannons, g_emu.pirate_sailors,
                g_emu.pirate_sails, g_emu.virtual_ms);
+}
+
+/* PvP capture battle entered: sub_C6C0(r0=attacker rec, r1=defender rec). Confirmed at
+ * the call site 0x127a0 (mov r0,r7 = moving/active player = attacker; mov r1,r4 = in-port
+ * player = defender). The firmware then advances the DEFENDER's turn-progress so
+ * active_player_color() resolves the defender as "Du" — we remember the ATTACKER here so
+ * the enemy panel can show it (its record stays valid for the whole battle; the roster is
+ * never freed mid-game). Fires once at entry; re-fires harmlessly on later rounds. */
+static void on_pvp_battle(cpu_t *cpu, uint32_t addr, uint32_t idx, void *user)
+{
+    (void)addr; (void)idx; (void)user;
+    uint32_t a = cpu_reg(cpu, 0), d = cpu_reg(cpu, 1);
+    if (a >= 0x40000000u && a < 0x40100000u) {
+        g_emu.pvp_attacker_rec = a;
+        g_emu.pvp_pending      = true;
+    }
+    if (g_emu.trace) {
+        uint8_t ac = 0, dc = 0;
+        cpu_read(cpu, a + 2, &ac, 1); cpu_read(cpu, d + 2, &dc, 1);
+        printf("  >>> PVP CAPTURE attacker=%08x c=%d defender=%08x c=%d @vms=%u\n",
+               a, ac, d, dc, g_emu.virtual_ms);
+    }
+}
+
+/* Silverfleet rumor announced (#multiquest_silver): the builder at 0x512c holds the
+ * 3 rumored port indices live in r0,r1,r2 (the printf-style voice vars at sub_2155C
+ * are already string pointers, so they must be captured here). A fresh rumor replaces
+ * any previous set. Indices are the 0-based display ports 0..7 (consts.ts order). */
+static void on_silver_ports(cpu_t *cpu, uint32_t addr, uint32_t idx, void *user)
+{
+    (void)addr; (void)idx; (void)user;
+    uint32_t p[3] = { cpu_reg(cpu, 0), cpu_reg(cpu, 1), cpu_reg(cpu, 2) };
+    uint8_t set = 0;
+    for (int i = 0; i < 3; i++) if (p[i] <= 7u) set |= (uint8_t)(1u << p[i]);
+    g_emu.silver_ports = set;
+    if (g_emu.trace)
+        printf("  >>> SILVER ports %u,%u,%u -> 0x%02x @vms=%u\n",
+               p[0], p[1], p[2], set, g_emu.virtual_ms);
 }
 
 /* Gameplay-phase signal: the first take-new-goods turn means registration is
@@ -163,6 +212,8 @@ int emu_boot(cpu_t **cpu_out)
     cpu_watch(cpu, ADDR_TURN_CARGO,   on_turn_cargo, NULL);
     cpu_watch(cpu, ADDR_BATTLE,       on_battle_check, NULL);
     cpu_watch(cpu, ADDR_PIRATE_STATS, on_pirate_stats, NULL);
+    cpu_watch(cpu, ADDR_PVP_BATTLE,   on_pvp_battle, NULL);     /* PvP capture: learn attacker */
+    cpu_watch(cpu, ADDR_SILVER_PORTS, on_silver_ports, NULL);   /* silverfleet rumor ports */
     cpu_watch(cpu, ADDR_RFID_MATCH,   on_rfid_match, NULL);
     g_rfid_log_budget = 120;
     g_emu.sel_dest = -1;

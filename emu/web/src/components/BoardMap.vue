@@ -1,11 +1,27 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { GameState } from '../types'
-import { PORTS, CARGONAME, PORT_HOTSPOTS, CARGO_HOTSPOTS } from '../lib/consts'
+import { PORTS, CARGONAME, PORT_HOTSPOTS, CARGO_HOTSPOTS, COLNAME, COLCSS } from '../lib/consts'
 import { api } from '../lib/socket'
 
 const props = defineProps<{ state: GameState }>()
 const inGame = computed(() => props.state.in_game)
+
+// Map markers derived from the serialized state. Port numbers are display indices
+// 0..7 (PORTS / PORT_HOTSPOTS order). Markers are non-interactive (clicks pass
+// through to the port hotspots beneath them).
+const playerMarks = computed(() =>
+  (props.state.player_ports ?? [])
+    .map((port, ci) => ({ port, ci }))
+    .filter(m => m.port >= 0 && m.port <= 7)
+)
+function bitsToPorts(mask: number): number[] {
+  const out: number[] = []
+  for (let i = 0; i < 8; i++) if (mask & (1 << i)) out.push(i)
+  return out
+}
+const pirateMarks = computed(() => bitsToPorts(props.state.pirate_ports ?? 0))
+const silverMarks = computed(() => bitsToPorts(props.state.silver_ports ?? 0))
 
 // Dev-only calibration aid: makes hotspots visible + numbered and logs the
 // click position as board-percentages, so coords in consts.ts can be tuned
@@ -67,6 +83,34 @@ function logPos(e: MouseEvent) {
         <span v-if="DEBUG" class="idx">C{{ i }}</span>
       </button>
     </template>
+
+    <!-- Live entity markers (non-interactive; clicks pass through to the hotspots).
+         Pirate = dark skull badge, silver = gold star badge, player = colored dot. -->
+    <div
+      v-for="m in pirateMarks" :key="'pir' + m"
+      class="marker marker--pirate"
+      :style="{ left: PORT_HOTSPOTS[m].x + '%', top: PORT_HOTSPOTS[m].y + '%' }"
+      :title="'Pirat: ' + PORTS[m]"
+    >☠</div>
+
+    <div
+      v-for="m in silverMarks" :key="'slv' + m"
+      class="marker marker--silver"
+      :style="{ left: PORT_HOTSPOTS[m].x + '%', top: PORT_HOTSPOTS[m].y + '%' }"
+      :title="'Silberflotte (Gerücht): ' + PORTS[m]"
+    >✦</div>
+
+    <div
+      v-for="m in playerMarks" :key="'ply' + m.ci"
+      class="marker marker--player"
+      :style="{
+        left: PORT_HOTSPOTS[m.port].x + '%',
+        top: PORT_HOTSPOTS[m.port].y + '%',
+        background: COLCSS[m.ci],
+        transform: `translate(calc(-50% + ${(m.ci - 1.5) * 16}px), calc(-50% + 18px))`,
+      }"
+      :title="'Spieler ' + COLNAME[m.ci] + ': ' + PORTS[m.port]"
+    />
   </div>
 </template>
 
@@ -150,5 +194,42 @@ function logPos(e: MouseEvent) {
   transform: translate(-50%, -50%);
   font-size: 11px; font-weight: 700; color: #fff;
   text-shadow: 0 1px 2px #000; pointer-events: none;
+}
+
+/* Live entity markers — non-interactive overlays anchored on a port hotspot. */
+.marker {
+  position: absolute;
+  pointer-events: none;
+  display: grid; place-items: center;
+  font-size: 13px; line-height: 1;
+  user-select: none;
+  z-index: 2;
+}
+.marker--player {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, .9);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .6);
+  /* transform set inline (fans out by player color so co-located ships don't stack) */
+}
+.marker--pirate {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: #1a1320; color: #fff;
+  border: 2px solid #dc4646;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, .6);
+  transform: translate(calc(-50% - 24px), calc(-50% - 14px));   /* up-left of port */
+}
+.marker--silver {
+  width: 22px; height: 22px;
+  border-radius: 50%;
+  background: var(--gold); color: #2a230a;
+  border: 2px solid #fff3c4;
+  transform: translate(calc(-50% + 24px), calc(-50% - 14px));   /* up-right of port */
+  animation: silverpulse 1.6s ease-in-out infinite;
+}
+@keyframes silverpulse {
+  0%, 100% { box-shadow: 0 0 6px rgba(240, 220, 120, .5); }
+  50%      { box-shadow: 0 0 16px rgba(240, 220, 120, .95); }
 }
 </style>

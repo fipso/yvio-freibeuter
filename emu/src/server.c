@@ -189,6 +189,7 @@ static int child_serialize_state(char *buf, int cap)
         "\"last_voice_key\":\"%s\",\"virtual_ms\":%u,"
         "\"pirate_idx\":%d,\"pirate_cannons\":%d,\"pirate_sailors\":%d,\"pirate_sails\":%d,"
         "\"pvp_battle\":%s,\"enemy_color\":%d,"
+        "\"player_ports\":[%d,%d,%d,%d],\"pirate_ports\":%u,\"silver_ports\":%u,"
         "\"figures\":[",
         g_emu.crashed ? "true" : "false",
         g_emu.in_game ? "true" : "false", g_emu.in_battle ? "true" : "false", g_emu.active_color,
@@ -196,7 +197,10 @@ static int child_serialize_state(char *buf, int cap)
         g_emu.offered[0], g_emu.offered[1], g_emu.sel_cargo, g_emu.sel_dest,
         json_safe(g_emu.last_voice_key), g_emu.virtual_ms,
         g_emu.pirate_idx, g_emu.pirate_cannons, g_emu.pirate_sailors, g_emu.pirate_sails,
-        g_emu.pvp_battle ? "true" : "false", g_emu.enemy_color);
+        g_emu.pvp_battle ? "true" : "false", g_emu.enemy_color,
+        g_emu.player_ports[0], g_emu.player_ports[1],
+        g_emu.player_ports[2], g_emu.player_ports[3],
+        (unsigned)g_emu.pirate_ports, (unsigned)g_emu.silver_ports);
     if (n < 0) return 0;
     if (n >= cap) n = cap - 1;
     int first = 1;

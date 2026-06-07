@@ -96,6 +96,13 @@ typedef struct emu {
     int      pirate_cannons, pirate_sailors, pirate_sails;   /* PvE: from sub_E970; PvP: opponent record */
     bool     pvp_battle;    /* true during a player-vs-player capture battle */
     int      enemy_color;   /* PvP opponent's colour 1..4 (0 = NPC/none) */
+    uint32_t pvp_attacker_rec; /* captured attacker player-record ptr (0 = none), set at sub_C6C0 */
+    bool     pvp_pending;   /* sub_C6C0 fired: a PvP capture battle is live */
+
+    /* map markers (boot.c silver watch + rfid map_refresh_markers fill; server.c serializes) */
+    int8_t   player_ports[4];   /* [colour-1] -> current port 0..7, -1 = in transit/unknown */
+    uint8_t  pirate_ports;      /* bitmask: bit i => port i occupied by a pirate (0x400002F0) */
+    uint8_t  silver_ports;      /* bitmask: bit i => silverfleet rumor names port i */
 
     /* audio bridge state */
     bool     audio_running;
@@ -173,6 +180,7 @@ uint32_t ui_frame_ms(void);
 
 /* ---- rfid (rfid.c) ---- */
 void rfid_refresh_stats(void);    /* refresh active player's money/equipment into g_emu */
+void map_refresh_markers(void);   /* fill player_ports[] + pirate_ports from guest state */
 void sys_rfid_inventory(void);    /* 0x1074 */
 void sys_rfid_read_block(void);   /* 0x1078 */
 void sys_rfid_write_block(void);  /* 0x107C */

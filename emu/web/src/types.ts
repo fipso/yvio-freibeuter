@@ -28,6 +28,9 @@ export interface GameState {
   pirate_sails: number
   pvp_battle: boolean    // true during a player-vs-player capture battle
   enemy_color: number    // PvP opponent's color 1..4 (0 = NPC/none)
+  player_ports: number[] // length 4, [color-1] -> current port 0..7, -1 = in transit/none
+  pirate_ports: number   // bitmask, bit i => pirate occupying port i
+  silver_ports: number   // bitmask, bit i => silverfleet rumor at port i
 }
 
 export interface LobbyInfo {
